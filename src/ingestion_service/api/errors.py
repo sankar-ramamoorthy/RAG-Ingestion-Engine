@@ -8,9 +8,7 @@ from ingestion_service.api.v1.models import ErrorResponse
 
 def register_error_handlers(app) -> None:
     @app.exception_handler(RequestValidationError)
-    async def validation_error_handler(
-        request: Request, exc: RequestValidationError
-    ):
+    async def validation_error_handler(request: Request, exc: RequestValidationError):
         error = ErrorResponse(
             error_code="INVALID_REQUEST",
             message="Request validation failed",

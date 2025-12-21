@@ -22,7 +22,7 @@ def test_openapi_ingest_contract():
     assert req_body is not None, "POST /v1/ingest must have requestBody"
     req_schema_ref = req_body["content"]["application/json"]["schema"]["$ref"]
     assert req_schema_ref.endswith("IngestRequest"), (
-    f"Request schema should be IngestRequest, got {req_schema_ref}"
+        f"Request schema should be IngestRequest, got {req_schema_ref}"
     )
 
     # 4. Check response schema references IngestResponse
@@ -31,11 +31,11 @@ def test_openapi_ingest_contract():
     assert resp_202 is not None, "POST /v1/ingest must define 202 response"
     resp_schema_ref = resp_202["content"]["application/json"]["schema"]["$ref"]
     assert resp_schema_ref.endswith("IngestResponse"), (
-    f"Response schema should be IngestResponse, got {resp_schema_ref}"
+        f"Response schema should be IngestResponse, got {resp_schema_ref}"
     )
     # 5. Optionally check 422 (validation error) uses ErrorResponse
-    #resp_422 = responses.get("422")
-    #if resp_422:
+    # resp_422 = responses.get("422")
+    # if resp_422:
     #    error_schema_ref = resp_422["content"]["application/json"]["schema"]["$ref"]
     #    assert error_schema_ref.endswith("ErrorResponse"), \
     #         f"422 response should be ErrorResponse, got {error_schema_ref}"

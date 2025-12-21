@@ -8,6 +8,13 @@ repos:
     rev: v1.13.0
     hooks:
       - id: mypy
+        additional_dependencies:
+          - sqlalchemy
+          # if you want the SQLAlchemy typing extras (recommended with the plugin):
+          # - "sqlalchemy[mypy]"
+          # if you use pydantic-settings or other typed deps, you can add them too:
+          # - pydantic
+          # - pydantic-settings
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.4.0

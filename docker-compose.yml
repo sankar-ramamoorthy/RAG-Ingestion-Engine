@@ -9,3 +9,15 @@ services:
       - ./src/ingestion_service:/app/src/ingestion_service
     environment:
       - PYTHONPATH=/app/src
+  postgres:
+    image: postgres:15
+    container_name: ingestion-db
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: ingestion_user
+      POSTGRES_PASSWORD: ingestion_pass
+      POSTGRES_DB: ingestion_db
+    volumes:
+      - ./volumes/ingestion-db:/var/lib/postgresql/data

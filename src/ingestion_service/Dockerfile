@@ -6,9 +6,12 @@ WORKDIR /app
 
 # Copy entire repo (so pyproject.toml is available)
 COPY . .
+RUN apt-get update && apt-get install -y postgresql-client
 
 # Install all dependencies from pyproject.toml
 RUN uv sync
+# Install all dependencies from pyproject.toml using pip (this ensures everything is installed)
+#RUN pip install --no-cache-dir -r /app/pyproject.toml
 
 # Expose FastAPI port
 EXPOSE 8001

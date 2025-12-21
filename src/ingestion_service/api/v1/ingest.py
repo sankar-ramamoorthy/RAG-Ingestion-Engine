@@ -13,7 +13,6 @@ router = APIRouter(tags=["ingestion"])
     status_code=status.HTTP_202_ACCEPTED,
     summary="Submit content for ingestion",
 )
-
 def ingest(request: IngestRequest) -> IngestResponse:
     """
     Accept an ingestion request.
