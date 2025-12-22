@@ -2,7 +2,7 @@
 import uuid
 from sqlalchemy import Column, String, JSON, TIMESTAMP, MetaData  # ← Add MetaData here
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 from sqlalchemy.sql import text
 
 metadata = MetaData(schema="ingestion_service")  # Now defined
