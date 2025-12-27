@@ -100,9 +100,3 @@ The vector store remains behind the `VectorStore` interface, preserving architec
 | ORM wrappers for pgvector | Rejected (immature tooling)                          |
 
 ---
-
-### Related Issues
-
-* IS5-MS2 — Vector Store Implementation
-* IS5a-MS2 — Vector Store Architecture Decision
-* IS5b-MS2 — Raw PostgreSQL + pgvector Implementation
