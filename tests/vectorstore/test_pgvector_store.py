@@ -8,17 +8,8 @@ pytest_plugins = ["tests.conftest_db"]
 
 @pytest.mark.docker
 @pytest.mark.integration
-def test_pgvector_store_add_search_delete(test_database_url):
-    # dsn = (
-    #    "postgresql://ingestion_user:"
-    #    "ingestion_pass@postgres:5432/ingestion_test"
-    # )
-    dsn = test_database_url
-
-    store = PgVectorStore(
-        dsn=dsn,
-        dimension=3,
-    )
+def test_pgvector_store_add_search_delete(clean_vectors_table, test_database_url):
+    store = PgVectorStore(dsn=test_database_url, dimension=3)
 
     ingestion_id = str(uuid.uuid4())
     chunk_id = str(uuid.uuid4())
@@ -33,25 +24,13 @@ def test_pgvector_store_add_search_delete(test_database_url):
         ),
     )
 
-    # --- add ---
     store.add([record])
 
-    # --- similarity search ---
-    results = store.similarity_search(
-        query_vector=[0.1, 0.2, 0.31],
-        k=1,
-    )
-
+    results = store.similarity_search(query_vector=[0.1, 0.2, 0.31], k=1)
     assert len(results) == 1
     assert results[0].metadata.ingestion_id == ingestion_id
     assert results[0].metadata.chunk_id == chunk_id
 
-    # --- delete ---
     store.delete_by_ingestion_id(ingestion_id)
-
-    results_after_delete = store.similarity_search(
-        query_vector=[0.1, 0.2, 0.3],
-        k=1,
-    )
-
+    results_after_delete = store.similarity_search(query_vector=[0.1, 0.2, 0.3], k=1)
     assert results_after_delete == []

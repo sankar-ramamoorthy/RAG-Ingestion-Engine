@@ -11,6 +11,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    ports:
+      - "5432:5432"  # optional, allows host access
 
   ingestion_service:
     build:
@@ -21,6 +23,14 @@ services:
       PYTHONPATH: /app/src
     volumes:
       - ./src/ingestion_service:/app/src/ingestion_service
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  psql:
+    image: postgres:15
+    container_name: ingestion-db-psql
+    entrypoint: ["sleep", "infinity"]
     depends_on:
       postgres:
         condition: service_healthy

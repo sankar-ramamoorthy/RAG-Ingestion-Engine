@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from typing import Sequence, Iterable, List
-import psycopg  # pip install psycopg[binary]
+import psycopg
+from psycopg import sql
 
 from .base import VectorStore, VectorRecord, VectorMetadata
 
@@ -9,59 +10,62 @@ from .base import VectorStore, VectorRecord, VectorMetadata
 class PgVectorStore(VectorStore):
     """PostgreSQL + pgvector vector store (psycopg, raw SQL, no ORM)."""
 
+    TABLE_NAME = "vectors"
+    SCHEMA = "ingestion_service"
+
     def __init__(self, dsn: str, dimension: int):
         self._dsn = dsn
         self._dimension = dimension
-        self._table_name = "vectors"
-        self._ensure_table_exists()
+        self._validate_table()  # 🔥 migrations own schema
 
     @property
     def dimension(self) -> int:
         return self._dimension
 
     def add(self, records: Iterable[VectorRecord]) -> None:
-        """Insert vectors and metadata into PostgreSQL using raw SQL."""
-        insert_sql = f"""
-        INSERT INTO {self._table_name}
-        (vector, ingestion_id, chunk_id, chunk_index, chunk_strategy)
-        VALUES (%s, %s, %s, %s, %s)
-        """
+        insert_sql = sql.SQL("""
+            INSERT INTO {schema}.{table}
+            (vector, ingestion_id, chunk_id, chunk_index, chunk_strategy)
+            VALUES (%s, %s, %s, %s, %s)
+        """).format(
+            schema=sql.Identifier(self.SCHEMA),
+            table=sql.Identifier(self.TABLE_NAME),
+        )
+
         with psycopg.connect(self._dsn) as conn:
             with conn.cursor() as cur:
                 for record in records:
-                    vector = record.vector
-                    ingestion_id = record.metadata.ingestion_id
-                    chunk_id = record.metadata.chunk_id
-                    chunk_index = record.metadata.chunk_index
-                    chunk_strategy = record.metadata.chunk_strategy
-
-                    params = (
-                        vector,
-                        ingestion_id,
-                        chunk_id,
-                        chunk_index,
-                        chunk_strategy,
+                    cur.execute(
+                        insert_sql,
+                        (
+                            record.vector,
+                            record.metadata.ingestion_id,
+                            record.metadata.chunk_id,
+                            record.metadata.chunk_index,
+                            record.metadata.chunk_strategy,
+                        ),
                     )
-                    cur.execute(insert_sql, params)  # type: ignore
 
     def similarity_search(
         self,
         query_vector: Sequence[float],
         k: int,
     ) -> List[VectorRecord]:
-        """Return top-k most similar vectors using <-> operator."""
-        search_sql = f"""
-        SELECT vector, ingestion_id, chunk_id, chunk_index, chunk_strategy
-        FROM {self._table_name}
-        ORDER BY vector <-> (%s::vector)
-        LIMIT %s
-        """
+        search_sql = sql.SQL("""
+            SELECT vector, ingestion_id, chunk_id, chunk_index, chunk_strategy
+            FROM {schema}.{table}
+            ORDER BY vector <-> (%s::vector)
+            LIMIT %s
+        """).format(
+            schema=sql.Identifier(self.SCHEMA),
+            table=sql.Identifier(self.TABLE_NAME),
+        )
+
         results: List[VectorRecord] = []
         with psycopg.connect(self._dsn) as conn:
             with conn.cursor() as cur:
-                cur.execute(search_sql, (query_vector, k))  # type: ignore
-                rows = cur.fetchall()
-                for row in rows:
+                cur.execute(search_sql, (query_vector, k))
+                for row in cur.fetchall():
                     vector, ingestion_id, chunk_id, chunk_index, chunk_strategy = row
                     metadata = VectorMetadata(
                         ingestion_id=ingestion_id,
@@ -73,33 +77,57 @@ class PgVectorStore(VectorStore):
         return results
 
     def delete_by_ingestion_id(self, ingestion_id: str) -> None:
-        """Delete vectors for a given ingestion_id."""
-        delete_sql = f"DELETE FROM {self._table_name} WHERE ingestion_id = %s"
-        params = (ingestion_id,)
+        delete_sql = sql.SQL("""
+            DELETE FROM {schema}.{table}
+            WHERE ingestion_id = %s
+        """).format(
+            schema=sql.Identifier(self.SCHEMA),
+            table=sql.Identifier(self.TABLE_NAME),
+        )
+
         with psycopg.connect(self._dsn) as conn:
             with conn.cursor() as cur:
-                cur.execute(delete_sql, params)  # type: ignore
+                cur.execute(delete_sql, (ingestion_id,))
 
     def reset(self) -> None:
-        """Clear all vectors (for testing/dev)."""
-        truncate_sql = f"TRUNCATE TABLE {self._table_name}"
-        with psycopg.connect(self._dsn) as conn:
-            with conn.cursor() as cur:
-                cur.execute(truncate_sql)  # type: ignore
-
-    def _ensure_table_exists(self) -> None:
-        """Create table if not exists with pgvector column."""
-        table = self._table_name
-        create_sql = f"""
-        CREATE TABLE IF NOT EXISTS {table} (
-            id SERIAL PRIMARY KEY,
-            vector vector({self._dimension}) NOT NULL,
-            ingestion_id TEXT NOT NULL,
-            chunk_id TEXT NOT NULL,
-            chunk_index INT NOT NULL,
-            chunk_strategy TEXT NOT NULL
+        truncate_sql = sql.SQL("""
+            TRUNCATE TABLE {schema}.{table}
+        """).format(
+            schema=sql.Identifier(self.SCHEMA),
+            table=sql.Identifier(self.TABLE_NAME),
         )
-        """
+
         with psycopg.connect(self._dsn) as conn:
             with conn.cursor() as cur:
-                cur.execute(create_sql)  # type: ignore
+                cur.execute(truncate_sql)
+
+    def _validate_table(self) -> None:
+        """
+        Fail-fast via probe query.
+        Ensures the vectors table exists and is compatible.
+        """
+        probe_sql = sql.SQL("""
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = {schema}
+              AND table_name = {table}
+              AND column_name = 'vector'
+              AND udt_name = 'vector'
+        """).format(
+            schema=sql.Literal(self.SCHEMA),
+            # ✅ Literal fixes the UndefinedColumn error
+            table=sql.Literal(self.TABLE_NAME),
+        )
+
+        try:
+            with psycopg.connect(self._dsn) as conn:
+                with conn.cursor() as cur:
+                    cur.execute(probe_sql)
+                    if cur.rowcount == 0:
+                        raise RuntimeError("PgVectorStore schema validation failed")
+        except Exception as exc:
+            raise RuntimeError(
+                f"PgVectorStore schema validation failed: "
+                f"table '{self.SCHEMA}.{self.TABLE_NAME}' is missing or incompatible. "
+                f"Have you run database migrations?"
+            ) from exc

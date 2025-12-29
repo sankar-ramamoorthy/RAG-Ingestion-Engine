@@ -13,15 +13,8 @@ def test_pgvector_similarity_search(clean_vectors_table, test_database_url):
     Test that PgVectorStore similarity_search returns correct top-k vectors
     ordered by distance (<-> operator).
     """
-    # dsn = (
-    #    "postgresql://ingestion_user:"
-    #    "ingestion_pass@postgres:5432/ingestion_test"
-    # )
-    dsn = test_database_url
+    store = PgVectorStore(dsn=test_database_url, dimension=3)
 
-    store = PgVectorStore(dsn=dsn, dimension=3)
-
-    # --- add multiple records ---
     records = [
         VectorRecord(
             vector=[1.0, 0.0, 0.0],
@@ -54,7 +47,6 @@ def test_pgvector_similarity_search(clean_vectors_table, test_database_url):
 
     store.add(records)
 
-    # --- similarity search ---
     query = [0.9, 0.1, 0.0]
     results = store.similarity_search(query_vector=query, k=2)
 
@@ -62,8 +54,6 @@ def test_pgvector_similarity_search(clean_vectors_table, test_database_url):
     assert results[0].metadata.ingestion_id == "ing-1"
     assert results[1].metadata.ingestion_id == "ing-2"
 
-    # --- delete and verify ---
     store.delete_by_ingestion_id("ing-1")
     remaining = store.similarity_search(query_vector=query, k=3)
-
     assert all(r.metadata.ingestion_id != "ing-1" for r in remaining)
