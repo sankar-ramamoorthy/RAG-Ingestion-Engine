@@ -4,8 +4,20 @@ import os
 import json
 import requests
 import gradio as gr
+from datetime import datetime
 
 API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8001")
+
+
+def format_timestamp(ts: str | None) -> str:
+    """Format ISO timestamp string nicely, or return '-' if None."""
+    if ts is None:
+        return "-"
+    try:
+        dt = datetime.fromisoformat(ts)
+        return dt.strftime("%Y-%m-%d %H:%M:%S")
+    except Exception:
+        return ts  # fallback to raw string if parsing fails
 
 
 def submit_ingest(source_type: str, file_obj):
@@ -14,11 +26,7 @@ def submit_ingest(source_type: str, file_obj):
             if file_obj is None:
                 return "No file selected."
 
-            metadata = json.dumps(
-                {
-                    "filename": os.path.basename(file_obj.name),
-                }
-            )
+            metadata = json.dumps({"filename": os.path.basename(file_obj.name)})
 
             with open(file_obj.name, "rb") as f:
                 response = requests.post(
@@ -30,10 +38,7 @@ def submit_ingest(source_type: str, file_obj):
         else:
             response = requests.post(
                 f"{API_BASE_URL}/v1/ingest",
-                json={
-                    "source_type": source_type,
-                    "metadata": {},
-                },
+                json={"source_type": source_type, "metadata": {}},
                 timeout=5,
             )
 
@@ -41,7 +46,10 @@ def submit_ingest(source_type: str, file_obj):
             return f"Error submitting ingestion: {response.text}"
 
         data = response.json()
-        return f"Ingestion accepted.\nID: {data['ingestion_id']}"
+        created_at = format_timestamp(data.get("created_at"))
+        return (
+            f"Ingestion accepted.\nID: {data['ingestion_id']}\nCreated At: {created_at}"
+        )
 
     except Exception as exc:
         return f"Error submitting ingestion: {exc}"
@@ -49,6 +57,9 @@ def submit_ingest(source_type: str, file_obj):
 
 def check_status(ingestion_id: str):
     try:
+        if not ingestion_id:
+            return "Please enter an ingestion ID."
+
         response = requests.get(
             f"{API_BASE_URL}/v1/ingest/{ingestion_id}",
             timeout=5,
@@ -56,7 +67,17 @@ def check_status(ingestion_id: str):
 
         if response.status_code == 200:
             data = response.json()
-            return f"Status: {data['status']}"
+            status = data.get("status", "-")
+            created = format_timestamp(data.get("created_at"))
+            started = format_timestamp(data.get("started_at"))
+            finished = format_timestamp(data.get("finished_at"))
+
+            return (
+                f"Status: {status}\n"
+                f"Created At: {created}\n"
+                f"Started At: {started}\n"
+                f"Finished At: {finished}"
+            )
 
         # Any non-200 → show error cleanly
         try:

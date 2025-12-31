@@ -1,12 +1,17 @@
 # tests/api/test_ingest_integration.py
 from fastapi.testclient import TestClient
 from uuid import UUID
-
+import pytest
 from ingestion_service.main import app
 
 client = TestClient(app)
 
 
+pytest_plugins = ["tests.conftest_db"]
+
+
+@pytest.mark.docker
+@pytest.mark.integration
 def test_ingest_returns_accepted():
     """
     Test that POST /v1/ingest returns 202 Accepted and a valid ingestion_id.
@@ -31,6 +36,8 @@ def test_ingest_returns_accepted():
     assert payload.get("status") == "accepted"
 
 
+@pytest.mark.docker
+@pytest.mark.integration
 def test_ingest_status_visible():
     """
     End-to-end test that:
@@ -59,4 +66,4 @@ def test_ingest_status_visible():
     status_payload = status_response.json()
 
     assert status_payload["ingestion_id"] == ingestion_id
-    assert status_payload["status"] == "accepted"
+    assert status_payload["status"] == "completed"

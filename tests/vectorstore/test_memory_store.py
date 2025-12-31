@@ -1,71 +1,40 @@
-# tests/vectorstore/test_memory_store.py
-from ingestion_service.core.vectorstore.base import (
-    VectorMetadata,
-    VectorRecord,
-)
-from ingestion_service.core.vectorstore.memory import InMemoryVectorStore
+from ingestion_service.core.vectorstore.memory import MemoryVectorStore
+from ingestion_service.core.chunks import Chunk  # ✅ use real Chunk class
 
 
-def test_add_and_search() -> None:
-    store = InMemoryVectorStore(dimension=3)
+def test_memory_store_persist_and_dump():
+    store = MemoryVectorStore()
 
-    records = [
-        VectorRecord(
-            vector=[1.0, 0.0, 0.0],
-            metadata=VectorMetadata(
-                ingestion_id="ing-1",
-                chunk_id="c1",
-                chunk_index=0,
-                chunk_strategy="fixed",
-            ),
-        ),
-        VectorRecord(
-            vector=[0.0, 1.0, 0.0],
-            metadata=VectorMetadata(
-                ingestion_id="ing-1",
-                chunk_id="c2",
-                chunk_index=1,
-                chunk_strategy="fixed",
-            ),
-        ),
+    chunks = [
+        Chunk(chunk_id="chunk-1", content="Hello", metadata={"chunk_strategy": "split"})
+    ]
+    embeddings = [[1.0, 2.0, 3.0]]
+
+    store.persist(chunks=chunks, embeddings=embeddings, ingestion_id="test-id")
+    rows = store.dump()
+
+    assert len(rows) == 1
+    assert rows[0]["ingestion_id"] == "test-id"
+    assert rows[0]["chunk_index"] == 0
+    assert rows[0]["chunk_strategy"] == "split"
+    assert rows[0]["vector"] == [1.0, 2.0, 3.0]
+
+
+def test_memory_store_multiple_chunks():
+    store = MemoryVectorStore()
+
+    chunks = [
+        Chunk("A", {"chunk_strategy": "split"}),
+        Chunk("B", {"chunk_strategy": "split"}),
+    ]
+    embeddings = [
+        [0.1, 0.2, 0.3],
+        [0.4, 0.5, 0.6],
     ]
 
-    store.add(records)
+    store.persist(chunks=chunks, embeddings=embeddings, ingestion_id="multi-id")
+    rows = store.dump()
 
-    results = store.similarity_search([1.0, 0.0, 0.0], k=1)
-
-    assert len(results) == 1
-    assert results[0].metadata.chunk_id == "c1"
-
-
-def test_delete_by_ingestion_id() -> None:
-    store = InMemoryVectorStore(dimension=2)
-
-    store.add(
-        [
-            VectorRecord(
-                vector=[1.0, 0.0],
-                metadata=VectorMetadata(
-                    ingestion_id="ing-1",
-                    chunk_id="c1",
-                    chunk_index=0,
-                    chunk_strategy="fixed",
-                ),
-            ),
-            VectorRecord(
-                vector=[0.0, 1.0],
-                metadata=VectorMetadata(
-                    ingestion_id="ing-2",
-                    chunk_id="c2",
-                    chunk_index=0,
-                    chunk_strategy="fixed",
-                ),
-            ),
-        ]
-    )
-
-    store.delete_by_ingestion_id("ing-1")
-
-    results = store.similarity_search([1.0, 0.0], k=10)
-    assert len(results) == 1
-    assert results[0].metadata.ingestion_id == "ing-2"
+    assert len(rows) == 2
+    assert rows[1]["chunk_index"] == 1
+    assert rows[1]["vector"] == [0.4, 0.5, 0.6]

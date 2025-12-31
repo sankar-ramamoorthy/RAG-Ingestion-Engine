@@ -4,6 +4,14 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 
+IngestionStatus = Literal[
+    "accepted",
+    "running",
+    "completed",
+    "failed",
+]
+
+
 class IngestRequest(BaseModel):
     """
     Contract-only request model for ingestion.
@@ -26,7 +34,7 @@ class IngestRequest(BaseModel):
 
 class IngestResponse(BaseModel):
     """
-    Contract-only response model for ingestion acceptance.
+    Response model for ingestion creation and status checks.
     """
 
     ingestion_id: UUID = Field(
@@ -34,10 +42,10 @@ class IngestResponse(BaseModel):
         description="Server-generated identifier for this ingestion request",
     )
 
-    status: Literal["accepted"] = Field(
+    status: IngestionStatus = Field(
         ...,
-        description="Indicates the ingestion request was accepted for processing",
-        examples=["accepted"],
+        description="Current ingestion status",
+        examples=["accepted", "running", "completed"],
     )
 
 
