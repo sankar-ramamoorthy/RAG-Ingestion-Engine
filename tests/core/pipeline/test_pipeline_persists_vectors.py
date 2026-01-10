@@ -41,7 +41,9 @@ def test_pipeline_persists_vectors_pgvector(clean_vectors_table, test_database_u
     text = "This is a test document for Docker integration pipeline."
 
     # --- Test end-to-end pipeline ---
-    pipeline.run(text=text, ingestion_id=ingestion_id)
+    pipeline.run(
+        text=text, ingestion_id=ingestion_id, source_type="text", provider="ollama"
+    )
 
     # --- Verify vectors persisted correctly ---
     query_chunk = Chunk(chunk_id="query", content=text, metadata={})

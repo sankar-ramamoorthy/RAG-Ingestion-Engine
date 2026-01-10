@@ -41,6 +41,12 @@ class PgVectorStore(VectorStore):
         )
         records = []
         for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
+            # Merge enriched metadata with chunk content and indexing
+            metadata_dict = dict(chunk.metadata or {})
+            metadata_dict["chunk_text"] = (
+                chunk.content
+            )  # ensure text is stored in metadata
+
             record = VectorRecord(
                 vector=embedding,
                 metadata=VectorMetadata(
@@ -49,8 +55,8 @@ class PgVectorStore(VectorStore):
                     chunk_index=i,
                     chunk_strategy=chunk.metadata.get("chunk_strategy", "unknown"),
                     chunk_text=chunk.content,
-                    source_metadata=chunk.metadata,
-                    provider=self._provider,
+                    source_metadata=metadata_dict,
+                    provider=chunk.metadata.get("provider", self._provider),
                 ),
             )
             records.append(record)

@@ -9,7 +9,6 @@ from ingestion_service.core.embedders.factory import get_embedder
 from ingestion_service.core.embedders.ollama import OllamaEmbedder
 from ingestion_service.core.vectorstore.pgvector_store import PgVectorStore
 
-
 # ------------------------------------------------------------------
 # HARD SKIP: Docker-only (requires Postgres + Ollama)
 # ------------------------------------------------------------------
@@ -44,32 +43,65 @@ class TestOllamaEmbeddingCorrectness:
             embedder=embedder,
             vector_store=vector_store,
         )
+        self._provider = "ollama"
 
     def test_ollama_produces_768d_vectors(self):
-        chunks = self.pipeline._chunk("test document content")
+        chunks = self.pipeline._chunk(
+            text="test document content", source_type="text", provider=self._provider
+        )
         embeddings: List[List[float]] = self.pipeline._embed(chunks)
 
         assert len(embeddings) == len(chunks)
         assert all(len(vec) == 768 for vec in embeddings)
 
     def test_identical_texts_are_retrievable(self):
-        self.pipeline.run(text="hello world", ingestion_id="a")
-        self.pipeline.run(text="hello world", ingestion_id="b")
+        self.pipeline.run(
+            text="hello world",
+            ingestion_id="a",
+            source_type="text",
+            provider=self._provider,
+        )
+        self.pipeline.run(
+            text="hello world",
+            ingestion_id="b",
+            source_type="text",
+            provider=self._provider,
+        )
 
-        query_chunks = self.pipeline._chunk("hello world")
+        query_chunks = self.pipeline._chunk(
+            text="hello world", source_type="text", provider=self._provider
+        )
         query_vec = self.pipeline._embed(query_chunks)[0]
 
         results = self.pipeline._vector_store.similarity_search(query_vec, k=5)
         ingestion_ids = {r.metadata.ingestion_id for r in results}
 
         assert {"a", "b"} & ingestion_ids
+        assert all(r.metadata.provider == self._provider for r in results)
 
     def test_semantic_match_is_present(self):
-        self.pipeline.run(text="The cat sat on the mat", ingestion_id="corpus")
-        self.pipeline.run(text="A feline rested upon a rug", ingestion_id="corpus")
-        self.pipeline.run(text="The quick brown fox jumps", ingestion_id="corpus")
+        self.pipeline.run(
+            text="The cat sat on the mat",
+            ingestion_id="corpus",
+            source_type="text",
+            provider=self._provider,
+        )
+        self.pipeline.run(
+            text="A feline rested upon a rug",
+            ingestion_id="corpus",
+            source_type="text",
+            provider=self._provider,
+        )
+        self.pipeline.run(
+            text="The quick brown fox jumps",
+            ingestion_id="corpus",
+            source_type="text",
+            provider=self._provider,
+        )
 
-        query_chunks = self.pipeline._chunk("cat sitting on rug")
+        query_chunks = self.pipeline._chunk(
+            text="cat sitting on rug", source_type="text", provider=self._provider
+        )
         query_vec = self.pipeline._embed(query_chunks)[0]
 
         results = self.pipeline._vector_store.similarity_search(query_vec, k=3)
@@ -80,3 +112,4 @@ class TestOllamaEmbeddingCorrectness:
             for text in texts
             for phrase in ("cat", "feline", "rug", "mat")
         )
+        assert all(r.metadata.provider == self._provider for r in results)

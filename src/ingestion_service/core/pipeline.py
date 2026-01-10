@@ -24,16 +24,32 @@ class IngestionPipeline:
         self._embedder = embedder
         self._vector_store = vector_store
 
-    def run(self, *, text: str, ingestion_id: str) -> None:
+    def run(
+        self,
+        *,
+        text: str,
+        ingestion_id: str,
+        source_type: str,
+        provider: str,
+    ) -> None:
         self._validate(text)
-        chunks = self._chunk(text)
+        chunks = self._chunk(
+            text=text,
+            source_type=source_type,
+            provider=provider,
+        )
         embeddings = self._embed(chunks)
         self._persist(chunks, embeddings, ingestion_id)
 
     def _validate(self, text: str) -> None:
         self._validator.validate(text)
 
-    def _chunk(self, text: str) -> list[Chunk]:
+    def _chunk(
+        self,
+        text: str,
+        source_type: str,
+        provider: str,
+    ) -> list[Chunk]:
         if self._chunker is None:
             selected_chunker, chunker_params = ChunkerFactory.choose_strategy(text)
         else:
@@ -41,16 +57,22 @@ class IngestionPipeline:
             chunker_params = {}
 
         chunks: list[Chunk] = selected_chunker.chunk(text, **chunker_params)
-        chunk_strategy = getattr(selected_chunker, "chunk_strategy", None)
+        chunk_strategy = getattr(selected_chunker, "chunk_strategy", "unknown")
 
         for chunk in chunks:
-            chunk.metadata["chunk_strategy"] = (
-                chunk_strategy if chunk_strategy is not None else "unknown"
+            chunk.metadata.update(
+                {
+                    "chunk_strategy": chunk_strategy,
+                    "chunker_name": getattr(
+                        selected_chunker,
+                        "name",
+                        selected_chunker.__class__.__name__,
+                    ),
+                    "chunker_params": dict(chunker_params),
+                    "source_type": source_type,
+                    "provider": provider,
+                }
             )
-            chunk.metadata["chunker_name"] = getattr(
-                selected_chunker, "name", selected_chunker.__class__.__name__
-            )
-            chunk.metadata["chunker_params"] = dict(chunker_params)
 
         return chunks
 
@@ -68,11 +90,6 @@ class IngestionPipeline:
         embeddings: list[Any],
         ingestion_id: str,
     ) -> None:
-        logging.debug(
-            "Pipeline: starting _persist: %d chunks, %d embeddings",
-            len(chunks),
-            len(embeddings),
-        )
         self._vector_store.persist(
             chunks=chunks,
             embeddings=embeddings,

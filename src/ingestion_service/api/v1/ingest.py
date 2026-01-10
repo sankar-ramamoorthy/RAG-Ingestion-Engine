@@ -27,14 +27,17 @@ class NoOpValidator:
         return None
 
 
-def _build_pipeline() -> IngestionPipeline:
+def _build_pipeline(provider: str) -> IngestionPipeline:
+    """
+    Build a fully-wired ingestion pipeline for API requests.
+    """
     settings = get_settings()
-    embedder = get_embedder(settings.EMBEDDING_PROVIDER)
+    embedder = get_embedder(provider)
 
     vector_store = PgVectorStore(
         dsn=settings.DATABASE_URL,
         dimension=getattr(embedder, "dimension", 3),
-        provider=settings.EMBEDDING_PROVIDER,
+        provider=provider,
     )
 
     return IngestionPipeline(
@@ -78,22 +81,29 @@ def _extract_text_from_file(
     summary="Submit content for ingestion (metadata-only)",
 )
 def ingest_json(request: IngestRequest) -> IngestResponse:
+    settings = get_settings()
+    provider = settings.EMBEDDING_PROVIDER
+    source_type = request.source_type
+
     ingestion_id = uuid4()
 
     with SessionLocal() as session:
         manager = StatusManager(session)
         manager.create_request(
             ingestion_id=ingestion_id,
-            source_type=request.source_type,
+            source_type=source_type,
             metadata=request.metadata,
         )
         manager.mark_running(ingestion_id)
 
-        pipeline = _build_pipeline()
+        pipeline = _build_pipeline(provider)
+
         try:
             pipeline.run(
                 text="placeholder ingestion content",
                 ingestion_id=str(ingestion_id),
+                source_type=source_type,
+                provider=provider,
             )
             manager.mark_completed(ingestion_id)
         except Exception as exc:
@@ -115,6 +125,9 @@ def ingest_file(
     file: UploadFile = File(...),
     metadata: Optional[str] = Form(default=None),
 ) -> IngestResponse:
+    settings = get_settings()
+    provider = settings.EMBEDDING_PROVIDER
+
     # Parse metadata
     try:
         parsed_metadata = json.loads(metadata) if metadata else {}
@@ -131,7 +144,6 @@ def ingest_file(
             detail="No extractable text found in uploaded file",
         )
 
-    # Safe handling of optional UploadFile fields
     content_type = file.content_type or ""
     filename = (file.filename or "").lower()
 
@@ -151,9 +163,15 @@ def ingest_file(
         )
         manager.mark_running(ingestion_id)
 
-        pipeline = _build_pipeline()
+        pipeline = _build_pipeline(provider)
+
         try:
-            pipeline.run(text=text, ingestion_id=str(ingestion_id))
+            pipeline.run(
+                text=text,
+                ingestion_id=str(ingestion_id),
+                source_type=source_type,
+                provider=provider,
+            )
             manager.mark_completed(ingestion_id)
         except Exception as exc:
             manager.mark_failed(ingestion_id, error=str(exc))
@@ -187,4 +205,7 @@ def ingest_status(ingestion_id: str) -> IngestResponse:
         if request is None:
             raise HTTPException(status_code=404, detail="Ingestion ID not found")
 
-        return IngestResponse(ingestion_id=request.ingestion_id, status=request.status)
+        return IngestResponse(
+            ingestion_id=request.ingestion_id,
+            status=request.status,
+        )

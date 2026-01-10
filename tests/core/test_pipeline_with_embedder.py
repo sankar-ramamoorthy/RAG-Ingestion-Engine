@@ -34,4 +34,6 @@ def test_pipeline_with_mock_embedder():
         vector_store=DummyVectorStore(),
     )
 
-    pipeline.run(text="hello", ingestion_id="test123")
+    pipeline.run(
+        text="hello", ingestion_id="test123", source_type="text", provider="mock"
+    )

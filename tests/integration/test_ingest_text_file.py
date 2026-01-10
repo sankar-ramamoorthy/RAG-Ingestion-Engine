@@ -62,7 +62,8 @@ def test_text_file_ingest_creates_vectorsv2(clean_vectors_table, test_database_u
     metadata = {"filename": "test.txt"}
 
     response = client.post(
-        "/v1/ingest/file", files=files,
+        "/v1/ingest/file",
+        files=files,
         data={"metadata": json.dumps(metadata)},  # use the variable
     )
     assert response.status_code == 202

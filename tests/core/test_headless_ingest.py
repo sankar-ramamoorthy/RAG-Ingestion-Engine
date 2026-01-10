@@ -37,7 +37,7 @@ def test_headless_ingestion_adds_vectors(clean_vectors_table, test_database_url)
         vector_store=vector_store,
     )
 
-    ingestor = HeadlessIngestor(pipeline)
+    ingestor = HeadlessIngestor(pipeline, provider="ollama", source_type="text")
 
     text = "Headless ingestion Docker integration test with multiple sentences."
     ingestion_id = str(uuid.uuid4())
@@ -53,3 +53,4 @@ def test_headless_ingestion_adds_vectors(clean_vectors_table, test_database_url)
     # Verify ingestion_id present and chunk_strategy properly set
     assert any(r.metadata.ingestion_id == ingestion_id for r in results)
     assert any(r.metadata.chunk_strategy == "simple" for r in results)
+    assert all(r.metadata.provider == "ollama" for r in results)

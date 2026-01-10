@@ -57,7 +57,9 @@ def test_pipeline_dynamic_chunker(monkeypatch):
     )
 
     # Use the public `run()` method, ingestion_id is now actually used
-    pipeline.run(text=text, ingestion_id=ingestion_id)
+    pipeline.run(
+        text=text, ingestion_id=ingestion_id, source_type="text", provider="mock"
+    )
 
     # Check that chunks were persisted
     persisted_chunks, persisted_embeddings, persisted_id = vector_store.persisted[0]
@@ -87,7 +89,9 @@ def test_pipeline_explicit_chunker():
         vector_store=vector_store,
     )
 
-    pipeline.run(text=text, ingestion_id=ingestion_id)
+    pipeline.run(
+        text=text, ingestion_id=ingestion_id, source_type="text", provider="mock"
+    )
 
     persisted_chunks, _, persisted_id = vector_store.persisted[0]
     assert persisted_id == ingestion_id
