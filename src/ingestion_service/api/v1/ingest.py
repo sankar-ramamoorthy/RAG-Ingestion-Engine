@@ -1,5 +1,4 @@
 # src/ingestion_service/api/v1/ingest.py
-
 from uuid import uuid4
 import json
 from typing import Optional
@@ -15,6 +14,7 @@ from ingestion_service.core.vectorstore.pgvector_store import PgVectorStore
 from ingestion_service.core.config import get_settings
 from ingestion_service.core.embedders.factory import get_embedder
 from ingestion_service.core.ocr.ocr_factory import get_ocr_engine
+from ingestion_service.core.extractors.pdf import PDFExtractor
 
 router = APIRouter(tags=["ingestion"])
 SessionLocal = get_sessionmaker()
@@ -52,26 +52,32 @@ def _extract_text_from_file(
 ) -> str:
     """
     Returns extracted text from a file. Uses OCR if file is an image.
+    Supports PDF via PDFExtractor.
     """
     content_type = file.content_type or ""
-    filename = (file.filename or "").lower()
-
+    filename: str = str(file.filename or "")
     file_bytes = file.file.read()
 
-    if content_type.startswith("image/") or filename.endswith(
+    if filename.endswith(".pdf") or content_type == "application/pdf":
+        pdf_extractor = PDFExtractor()
+        artifacts = pdf_extractor.extract(file_bytes=file_bytes, source_name=filename)
+        text_blocks = [a.text for a in artifacts if a.type == "text" and a.text]
+        return "\n".join(text_blocks)
+
+    elif content_type.startswith("image/") or filename.endswith(
         (".png", ".jpg", ".jpeg")
     ):
         ocr_engine = get_ocr_engine(ocr_provider or "tesseract")
-        text = ocr_engine.extract_text(file_bytes)
+        return ocr_engine.extract_text(file_bytes) or ""
+
     else:
         try:
-            text = file_bytes.decode("utf-8")
+            return file_bytes.decode("utf-8")
         except Exception:
             raise HTTPException(
-                status_code=400, detail="Unable to read uploaded text file as UTF-8"
+                status_code=400,
+                detail="Unable to read uploaded text file as UTF-8",
             )
-
-    return text or ""
 
 
 @router.post(
@@ -119,7 +125,7 @@ def ingest_json(request: IngestRequest) -> IngestResponse:
     "/ingest/file",
     response_model=IngestResponse,
     status_code=status.HTTP_202_ACCEPTED,
-    summary="Submit file for ingestion (text or image)",
+    summary="Submit file for ingestion (text, PDF, or image)",
 )
 def ingest_file(
     file: UploadFile = File(...),
@@ -145,8 +151,7 @@ def ingest_file(
         )
 
     content_type = file.content_type or ""
-    filename = (file.filename or "").lower()
-
+    filename: str = str(file.filename or "")
     source_type = (
         "image"
         if content_type.startswith("image/")
@@ -159,7 +164,7 @@ def ingest_file(
         manager.create_request(
             ingestion_id=ingestion_id,
             source_type=source_type,
-            metadata={**parsed_metadata, "filename": file.filename},
+            metadata={**parsed_metadata, "filename": filename},
         )
         manager.mark_running(ingestion_id)
 

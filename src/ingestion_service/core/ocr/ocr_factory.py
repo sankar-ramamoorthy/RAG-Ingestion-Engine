@@ -5,15 +5,15 @@ from typing import Dict
 
 from ingestion_service.core.ocr.ocr import OCRExtractor
 from ingestion_service.core.ocr.tesseract_ocr import TesseractOCR
-#from ingestion_service.core.ocr.paddle_ocr import PaddleOCRExtractor
+# from ingestion_service.core.ocr.paddle_ocr import PaddleOCRExtractor
 
 # Create single instances (heavy models) and reuse
 tesseract_ocr = TesseractOCR()
-#paddle_ocr = PaddleOCRExtractor()
+# paddle_ocr = PaddleOCRExtractor()
 
 OCR_ENGINES: Dict[str, OCRExtractor] = {
     TesseractOCR.name: tesseract_ocr,  # "tesseract"
-    #PaddleOCRExtractor.name: paddle_ocr,  # "paddle"
+    # PaddleOCRExtractor.name: paddle_ocr,  # "paddle"
 }
 
 
