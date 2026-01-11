@@ -1,22 +1,23 @@
+#DOCS/DESIGN/OCR_ARCHITECTURE.md
 # OCR Architecture & Design Decisions
 
 ## Context
 
-As part of **IS4 – Image Ingestion**, the ingestion service must support
-extracting text from images and feeding that text into the ingestion pipeline:
+As part of **image ingestion**, the ingestion service must support extracting
+text from images and feeding that text into the ingestion pipeline:
 
 ```
 
 image → OCR → text → chunking → embedding → vector store
 
-```
+````
 
-Multiple OCR engines are available (e.g., Tesseract, PaddleOCR, cloud OCRs),
-each with different tradeoffs in accuracy, performance, and operational
-complexity.
+Multiple OCR engines exist (e.g., Tesseract, PaddleOCR, vision-language OCRs,
+cloud OCRs), each with different tradeoffs in accuracy, performance, resource
+usage, and operational complexity.
 
-This document records the **design options considered**, the **decision taken**, and
-the **rationale** behind that decision.
+This document records the **design options considered**, the **decisions taken**,
+and how the OCR architecture is expected to evolve over time.
 
 ---
 
@@ -25,42 +26,108 @@ the **rationale** behind that decision.
 The OCR design must:
 
 - Keep the ingestion service **simple and stable**
-- Avoid coupling OCR choices to API contracts
-- Allow **future OCR engines** without refactoring the pipeline
-- Avoid operational complexity during early development
-- Remain compatible with Docker-based integration testing
+- Avoid coupling OCR choices to public API contracts
+- Support **incremental adoption** of more advanced OCR engines
+- Allow future GPU- or agentic-based OCR without refactoring ingestion
+- Remain compatible with Docker-based local development and CI
 
-Non-goals:
+Non-goals (at this stage):
 
-- GPU optimization
+- GPU scheduling
 - Layout-aware OCR (bounding boxes, coordinates)
-- Confidence scoring
-- OCR microservices
+- Confidence-driven pipeline logic
+- OCR result post-processing or enrichment
+- Agentic OCR orchestration
+
+---
+
+## Design Evolution (Important)
+
+The OCR architecture has evolved over time as real constraints were encountered.
+
+Earlier iterations favored fully in-process OCR adapters for all engines.
+However, experience with heavyweight OCR dependencies led to a **tiered model**
+that distinguishes between *lightweight default OCR* and *advanced OCR engines*.
+
+This evolution is intentional and documented via ADRs.
+
+---
+
+## OCR Engine Placement
+
+### Tier 1: In-Process OCR (Default)
+
+**Characteristics**
+
+- Runs inside the ingestion service container
+- CPU-only
+- Minimal system dependencies
+- Deterministic and easy to test
+
+**Current Engine**
+
+- **Tesseract OCR** (default)
+
+**Rationale**
+
+- Small operational footprint
+- Stable and well-understood
+- Suitable for basic document OCR
+- Keeps ingestion self-contained
+
+Tesseract is considered part of the **core ingestion runtime**.
+
+---
+
+### Tier 2: External OCR Services (Advanced / Optional)
+
+**Characteristics**
+
+- Run in **dedicated Docker containers**
+- May require GPU acceleration
+- Heavy ML dependencies
+- Independently deployable and scalable
+
+**Examples (non-exhaustive)**
+
+- PaddleOCR
+- PaddleOCR-VL
+- EasyOCR
+- Vision-language OCR pipelines
+
+**Rationale**
+
+- Avoids bloating the ingestion container
+- Prevents native dependency conflicts
+- Enables GPU isolation and scheduling
+- Supports future agentic or multi-stage OCR
+
+External OCR engines are **not required** for core ingestion operation.
 
 ---
 
 ## Design Options Considered
 
-### Option 1: One Docker Container per OCR Engine
+### Option 1: One Docker Container per OCR Engine (Initially Rejected, Later Adopted for Tier 2)
 
 **Description**
 
-Each OCR engine runs in its own Docker container with a dedicated API.
-The ingestion service calls the appropriate OCR service based on configuration.
+Each advanced OCR engine runs in its own Docker container with a dedicated API.
+The ingestion service calls the OCR service over a stable contract.
 
 **Pros**
 - Strong isolation between OCR engines
 - GPU-specific containers possible
-- Independent scaling
+- Independent scaling and deployment
+- Cleaner dependency boundaries
 
 **Cons**
-- High operational complexity
-- Multiple services to deploy and test
-- Increased CI and Docker orchestration cost
-- Overkill for early-stage ingestion
+- Increased operational complexity
+- More services to deploy and test
 
 **Decision**
-❌ Rejected
+✅ **Accepted for advanced OCR engines only**
+❌ **Not used for default OCR**
 
 ---
 
@@ -85,61 +152,47 @@ All OCR is delegated to external APIs (cloud OCR providers).
 
 ---
 
-### Option 3: Pluggable OCR Engines Inside the Ingestion Service (Chosen)
+### Option 3: Fully In-Process OCR Adapters for All Engines
 
 **Description**
 
-OCR engines are implemented as **pluggable internal adapters** inside the
-`ingestion_service`, selected via configuration and hidden behind a stable
-interface.
-
-```
-
-OCRExtractor (interface)
-├─ TesseractOCR
-├─ PaddleOCR (future)
-└─ RemoteOCRClient (future)
-
-````
-
-Only **text output** is exposed to the rest of the system.
+All OCR engines are implemented as internal adapters within the ingestion
+service and selected via configuration.
 
 **Pros**
-- Simple operational model (single service)
-- Matches existing embedder / chunker patterns
-- Easy to test locally and in Docker
-- OCR engines are replaceable without API changes
-- Future-ready for GPU or remote OCR
+- Simple operational model
+- Single service to deploy
+- Easy local testing
 
 **Cons**
-- OCR libraries share the same container
-- Heavy dependencies may increase image size (manageable)
+- Heavy OCR dependencies pollute ingestion runtime
+- GPU usage becomes difficult to manage
+- Native dependency conflicts likely
 
 **Decision**
-✅ Accepted
+❌ Rejected for advanced OCR engines
+✅ Retained for Tesseract only
 
 ---
 
-## Final Design Decision
+## Final Architecture Decision
 
 ### Core Principle
 
-> **OCR is a pluggable leaf dependency behind a stable text-only interface.**
+> **OCR is a replaceable leaf dependency behind a text-only boundary.**
 
-The ingestion pipeline never depends on:
+However, OCR engines are now **tiered by operational cost**:
 
-- OCR engine internals
-- Image formats
-- OCR confidence scores
-- Layout metadata
+- **Lightweight OCR stays embedded**
+- **Heavy OCR is isolated into services**
 
-It only consumes extracted text.
+This preserves simplicity while enabling growth.
 
 ---
 
-## OCR Interface Contract
+## OCR Interface Contract (Internal)
 
-All OCR engines must implement the same internal interface:
+All OCR engines—local or remote—must conform to the same *logical* interface:
 
 ```python
 class OCRExtractor:
@@ -153,32 +206,53 @@ class OCRExtractor:
 
 * Always returns a string
 * Empty or unreadable images return `""`
-* OCR-specific failures are handled internally
-* The pipeline never crashes due to OCR
+* OCR-specific failures are contained
+* The ingestion pipeline never crashes due to OCR internals
 
 ---
 
-## OCR Selection
+## External OCR Service Contract
 
-OCR engines are selected by **name**, via configuration or request override.
+Advanced OCR engines expose a **service-level API contract** documented separately:
 
-Example:
-
-```env
-OCR_PROVIDER=tesseract
+```
+DOCS/DESIGN/OCR_SERVICE_API_CONTRACT.md
 ```
 
-Optional API override (future-safe):
+Key principles:
 
-```json
+* Engine-agnostic
+* Text-only output
+* No ingestion-specific logic
+* Transport-independent (HTTP initially)
+
+The ingestion service treats external OCR as a **best-effort dependency**.
+
+---
+
+## OCR Selection & Defaults
+
+### Default Behavior
+
+* Default OCR engine: **Tesseract**
+* Runs in-process
+* Requires no external services
+
+### Optional Override
+
+OCR engine selection may be overridden via metadata:
+
+```
 {
   "ocr_provider": "tesseract"
 }
 ```
 
-If an OCR provider is requested but unavailable:
+Future values may refer to external OCR services.
 
-* The request fails fast with a clear error
+If a requested OCR provider is unavailable:
+
+* The request fails fast
 * No partial ingestion occurs
 
 ---
@@ -187,18 +261,16 @@ If an OCR provider is requested but unavailable:
 
 ### Current State
 
-* Single Docker container: `ingestion_service`
-* OCR engines installed as libraries
-* CPU-only execution
-* Tesseract implemented first
+* Single ingestion service container
+* Tesseract installed as a system dependency
+* CPU-only OCR
 
 ### Future State
 
-If GPU-based OCR is required:
-
-* OCR may run in a separate container or node pool
-* Ingestion service uses a `RemoteOCRClient`
-* **OCR interface remains unchanged**
+* Advanced OCR engines run in dedicated containers
+* GPU usage isolated from ingestion
+* Ingestion communicates via stable OCR service API
+* OCR interface remains unchanged
 
 ---
 
@@ -206,33 +278,33 @@ If GPU-based OCR is required:
 
 ### Adding a New OCR Engine
 
-* Implement new adapter
-* Register in OCR factory
-* Build and deploy new image
-* No API or pipeline changes required
+* Implement OCR service (external)
+* Conform to OCR service API contract
+* Deploy independently
+* No ingestion pipeline changes required
 
 ### Switching Default OCR
 
-* Update configuration
+* Configuration-only change
 * Redeploy ingestion service
 * Existing data remains valid
 
 ### Rollback
 
-* Revert configuration
-* Redeploy
+* Disable external OCR usage
+* Fall back to Tesseract
 * No data corruption or reprocessing required
 
 ---
 
 ## Failure Semantics
 
-| Scenario                  | Behavior                         |
-| ------------------------- | -------------------------------- |
-| Text detected             | Normal ingestion                 |
-| Blank / low-quality image | Empty text → no chunks           |
-| OCR error                 | Controlled failure or empty text |
-| OCR unavailable           | Clear configuration error        |
+| Scenario                  | Behavior                      |
+| ------------------------- | ----------------------------- |
+| Text detected             | Normal ingestion              |
+| Blank / low-quality image | Empty text → request rejected |
+| OCR error                 | Controlled failure            |
+| OCR service unavailable   | Clear configuration error     |
 
 In all cases:
 
@@ -241,14 +313,22 @@ In all cases:
 
 ---
 
+## Related Architecture Decisions
+
+* **ADR-006**: OCR Boundaries and Progressive Understanding
+* **ADR-009**: Tiered OCR Engines and Service Isolation
+* **ADR-010 (Proposed)**: Future GPU and Agentic OCR Orchestration
+
+---
+
 ## Summary
 
-This design:
+This architecture:
 
-* Keeps OCR **replaceable**
-* Keeps ingestion **stable**
-* Avoids premature microservices
-* Aligns with existing embedder abstractions
-* Allows gradual evolution toward GPU or cloud OCR
+* Keeps ingestion **stable and predictable**
+* Retains Tesseract as a reliable default
+* Isolates heavy OCR dependencies
+* Enables GPU and agentic OCR in the future
+* Avoids premature complexity while preventing architectural dead-ends
 
-The system remains **simple now**, while staying **flexible later**.
+**Simple now. Explicit later. Safe to evolve.**
