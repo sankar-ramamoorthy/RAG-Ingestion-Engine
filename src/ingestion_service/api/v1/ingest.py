@@ -16,6 +16,10 @@ from ingestion_service.core.embedders.factory import get_embedder
 from ingestion_service.core.ocr.ocr_factory import get_ocr_engine
 from ingestion_service.core.extractors.pdf import PDFExtractor
 
+# 🔽 NEW IMPORTS (MS4)
+from ingestion_service.core.document_graph.builder import DocumentGraphBuilder
+from ingestion_service.core.chunk_assembly.pdf_chunk_assembler import PDFChunkAssembler
+
 router = APIRouter(tags=["ingestion"])
 SessionLocal = get_sessionmaker()
 
@@ -28,9 +32,6 @@ class NoOpValidator:
 
 
 def _build_pipeline(provider: str) -> IngestionPipeline:
-    """
-    Build a fully-wired ingestion pipeline for API requests.
-    """
     settings = get_settings()
     embedder = get_embedder(provider)
 
@@ -52,32 +53,30 @@ def _extract_text_from_file(
 ) -> str:
     """
     Returns extracted text from a file. Uses OCR if file is an image.
-    Supports PDF via PDFExtractor.
+    PDFs are handled separately (MS4 always-on).
     """
     content_type = file.content_type or ""
     filename: str = str(file.filename or "")
     file_bytes = file.file.read()
 
-    if filename.endswith(".pdf") or content_type == "application/pdf":
-        pdf_extractor = PDFExtractor()
-        artifacts = pdf_extractor.extract(file_bytes=file_bytes, source_name=filename)
-        text_blocks = [a.text for a in artifacts if a.type == "text" and a.text]
-        return "\n".join(text_blocks)
-
-    elif content_type.startswith("image/") or filename.endswith(
+    if content_type.startswith("image/") or filename.endswith(
         (".png", ".jpg", ".jpeg")
     ):
         ocr_engine = get_ocr_engine(ocr_provider or "tesseract")
         return ocr_engine.extract_text(file_bytes) or ""
 
-    else:
-        try:
-            return file_bytes.decode("utf-8")
-        except Exception:
-            raise HTTPException(
-                status_code=400,
-                detail="Unable to read uploaded text file as UTF-8",
-            )
+    try:
+        return file_bytes.decode("utf-8")
+    except Exception:
+        raise HTTPException(
+            status_code=400,
+            detail="Unable to read uploaded text file as UTF-8",
+        )
+
+
+# ---------------------------------------------------------------------------
+# API endpoints
+# ---------------------------------------------------------------------------
 
 
 @router.post(
@@ -134,7 +133,7 @@ def ingest_file(
     settings = get_settings()
     provider = settings.EMBEDDING_PROVIDER
 
-    # Parse metadata
+    # ---- metadata parsing ----
     try:
         parsed_metadata = json.loads(metadata) if metadata else {}
     except json.JSONDecodeError as exc:
@@ -143,6 +142,62 @@ def ingest_file(
     ingestion_id = uuid4()
     ocr_provider = parsed_metadata.get("ocr_provider")
 
+    content_type = file.content_type or ""
+    filename: str = str(file.filename or "")
+
+    is_pdf = filename.endswith(".pdf") or content_type == "application/pdf"
+
+    pipeline = _build_pipeline(provider)
+
+    # ------------------------------------------------------------------
+    # PDF ingestion (MS4 always-on)
+    # ------------------------------------------------------------------
+    if is_pdf:
+        pdf_extractor = PDFExtractor()
+        artifacts = pdf_extractor.extract(
+            file_bytes=file.file.read(),
+            source_name=filename,
+        )
+
+        graph = DocumentGraphBuilder().build(artifacts)
+        chunks = PDFChunkAssembler().assemble(graph)
+
+        if not chunks:
+            raise HTTPException(
+                status_code=400,
+                detail="No extractable text found in uploaded PDF",
+            )
+
+        source_type = "file"
+
+        with SessionLocal() as session:
+            manager = StatusManager(session)
+            manager.create_request(
+                ingestion_id=ingestion_id,
+                source_type=source_type,
+                metadata={**parsed_metadata, "filename": filename},
+            )
+            manager.mark_running(ingestion_id)
+
+            try:
+                embeddings = pipeline._embed(chunks)
+                pipeline._persist(
+                    chunks=chunks,
+                    embeddings=embeddings,
+                    ingestion_id=str(ingestion_id),
+                )
+                manager.mark_completed(ingestion_id)
+            except Exception as exc:
+                manager.mark_failed(ingestion_id, error=str(exc))
+                raise HTTPException(
+                    status_code=500, detail="PDF ingestion pipeline failed"
+                ) from exc
+
+        return IngestResponse(ingestion_id=ingestion_id, status="accepted")
+
+    # ------------------------------------------------------------------
+    # Non-PDF ingestion (existing behavior)
+    # ------------------------------------------------------------------
     text = _extract_text_from_file(file, ocr_provider)
     if not text.strip():
         raise HTTPException(
@@ -150,8 +205,6 @@ def ingest_file(
             detail="No extractable text found in uploaded file",
         )
 
-    content_type = file.content_type or ""
-    filename: str = str(file.filename or "")
     source_type = (
         "image"
         if content_type.startswith("image/")
@@ -167,8 +220,6 @@ def ingest_file(
             metadata={**parsed_metadata, "filename": filename},
         )
         manager.mark_running(ingestion_id)
-
-        pipeline = _build_pipeline(provider)
 
         try:
             pipeline.run(
