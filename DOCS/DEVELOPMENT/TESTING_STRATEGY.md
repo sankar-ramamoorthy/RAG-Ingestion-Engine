@@ -1,6 +1,6 @@
-# Agentic-RAG-Ingestion: Testing Strategy
+# RAG-Ingestion-Engine: Testing Strategy
 
-This document outlines the **testing strategy** for the `Agentic-RAG-Ingestion` service, including unit tests, integration tests, and CI considerations. It also provides guidance on scripts available for convenience.
+This document outlines the **testing strategy** for the `RAG-Ingestion-Engine` service, including unit tests, integration tests, and CI considerations. It also provides guidance on scripts available for convenience.
 
 ---
 

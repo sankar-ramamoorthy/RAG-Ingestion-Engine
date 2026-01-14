@@ -3,7 +3,7 @@
 
 ## 1. Overview
 
-This document describes how documents (PDFs, images, text files) are represented, processed, and linked within the **Agentic-RAG-Ingestion system** during **Milestone 4 (MS4)**.
+This document describes how documents (PDFs, images, text files) are represented, processed, and linked within the **RAG-Ingestion-Engine system** during **Milestone 4 (MS4)**.
 
 MS4 focuses on:
 

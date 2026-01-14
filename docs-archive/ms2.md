@@ -8,7 +8,7 @@ No code yet, no refactors, no speculation — this is a **contract document**.
 
 ## 1. Purpose of MS2
 
-MS2 implements the **core text ingestion logic** for the Agentic-RAG-Ingestion service.
+MS2 implements the **core text ingestion logic** for the RAG-Ingestion-Engine service.
 
 This milestone moves ingestion from *request acceptance* to *fully persisted vectorized content*, while preserving the system’s role as a **standalone, black-box ingestion service**.
 

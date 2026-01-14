@@ -1,7 +1,7 @@
 # Design Principles
 
 **Status:** Binding (unless superseded by ADR)
-**Scope:** Agentic-RAG-Ingestion
+**Scope:** RAG-Ingestion-Engine
 **Audience:** Contributors, reviewers, downstream integrators
 
 ---
@@ -9,7 +9,7 @@
 ## Purpose
 
 This document captures the **core design principles** that guide all
-implementation decisions in Agentic-RAG-Ingestion.
+implementation decisions in RAG-Ingestion-Engine.
 
 These principles exist to:
 
@@ -166,7 +166,7 @@ Convenience tooling that undermines these goals is rejected.
 
 ## Summary
 
-Agentic-RAG-Ingestion is intentionally **boring**.
+RAG-Ingestion-Engine is intentionally **boring**.
 
 Its job is to faithfully capture raw signals and preserve them over time —
 not to be clever, insightful, or adaptive.

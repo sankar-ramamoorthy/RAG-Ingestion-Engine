@@ -1,5 +1,5 @@
 Current state:2025/12/18
-I have just created the GitHub repo Agentic-RAG-Ingestion.
+I have just created the GitHub repo RAG-Ingestion-Engine.
 I have added the following documents at the root:
 ARCHITECTURE_NOTES.md
 INGESTION_INTEGRATION_OVERVIEW.md
