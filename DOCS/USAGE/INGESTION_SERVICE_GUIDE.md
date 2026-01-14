@@ -6,7 +6,7 @@
 # Design Principles
 
 **Status:** Binding (unless superseded by ADR)
-**Scope:** Agentic-RAG-Ingestion
+**Scope:** RAG-Ingestion-Engine
 **Audience:** Contributors, reviewers, downstream integrators
 
 ---
@@ -14,7 +14,7 @@
 ## Purpose
 
 This document captures the **core design principles** that guide all
-implementation decisions in Agentic-RAG-Ingestion.
+implementation decisions in RAG-Ingestion-Engine.
 
 These principles exist to:
 
@@ -171,7 +171,7 @@ Convenience tooling that undermines these goals is rejected.
 
 ## Summary
 
-Agentic-RAG-Ingestion is intentionally **boring**.
+RAG-Ingestion-Engine is intentionally **boring**.
 
 Its job is to faithfully capture raw signals and preserve them over time —
 not to be clever, insightful, or adaptive.
@@ -194,14 +194,14 @@ When in doubt:
 ````md
 # Ingestion Service Guide
 
-**Service:** Agentic-RAG-Ingestion
+**Service:** RAG-Ingestion-Engine
 **Audience:** Developers, integrators, operators
 
 ---
 
 ## Overview
 
-This document explains **how to use** the Agentic-RAG-Ingestion service in
+This document explains **how to use** the RAG-Ingestion-Engine service in
 local development, testing, and Docker-based environments.
 
 It focuses on **observable behavior** and **supported workflows**, not internal

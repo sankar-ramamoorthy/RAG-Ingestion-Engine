@@ -2,7 +2,7 @@
 
 # Project Configuration Overview
 
-This document provides an overview of key configuration, environment, and tooling files in **Agentic-RAG-Ingestion**. It is intended to help developers quickly understand the purpose of each file, its context, and any project-specific decisions.
+This document provides an overview of key configuration, environment, and tooling files in **RAG-Ingestion-Engine**. It is intended to help developers quickly understand the purpose of each file, its context, and any project-specific decisions.
 
 ---
 

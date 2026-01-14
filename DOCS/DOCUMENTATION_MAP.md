@@ -1,4 +1,4 @@
-# Documentation Map for Agentic-RAG-Ingestion
+# Documentation Map for RAG-Ingestion-Engine
 
 This document provides an overview of the DOCS folder structure, purpose of key files, and how different documentation categories relate to each other. It is intended for developers, maintainers, and anyone navigating the repository.
 

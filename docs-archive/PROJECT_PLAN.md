@@ -1,4 +1,4 @@
-# Agentic-RAG-Ingestion – Project Plan
+# RAG-Ingestion-Engine – Project Plan
 
 ## Purpose
 

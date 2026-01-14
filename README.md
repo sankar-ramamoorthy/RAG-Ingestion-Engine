@@ -1,8 +1,8 @@
-# Agentic-RAG-Ingestion
+# RAG-Ingestion-Engine
 # Agentic-Rag-Ingestion/README.md
 
 **Category:** Core Microservice / Data Ingestion Layer
-**Purpose:** Agentic-RAG-Ingestion is the ingestion backbone for the Agentic-RAG-Platform. It is responsible for accepting raw content — including text, documents, PDFs, and images — and transforming it into structured, vectorized representations ready for retrieval-augmented generation (RAG).
+**Purpose:** RAG-Ingestion-Engine is the ingestion backbone for the Agentic-RAG-Platform. It is responsible for accepting raw content — including text, documents, PDFs, and images — and transforming it into structured, vectorized representations ready for retrieval-augmented generation (RAG).
 
 ---
 
@@ -117,7 +117,7 @@ For further discussion, use GitHub Issues or reach out to the maintainers.
 
 ## **Acknowledgements**
 
-The development of Agentic-RAG-Ingestion has been accelerated and guided with the help of several resources:
+The development of RAG-Ingestion-Engine has been accelerated and guided with the help of several resources:
 
 * Generative AI tools: [ChatGPT](https://chat.openai.com), [Perplexity AI](https://www.perplexity.ai), [Google](https://www.google.com), and [DuckAI](https://duck.ai).
 * Online community and documentation resources: [Stack Overflow](https://stackoverflow.com), [Docker Documentation](https://docs.docker.com), [GitHub](https://github.com), [Astral Docs](https://docs.astral.sh), among others.

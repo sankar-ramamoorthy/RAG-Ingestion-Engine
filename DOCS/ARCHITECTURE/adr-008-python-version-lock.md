@@ -9,7 +9,7 @@
 
 ## Context
 
-The Agentic-RAG-Ingestion service depends on a stack with multiple
+The RAG-Ingestion-Engine service depends on a stack with multiple
 binary and native dependencies, including:
 
 * PostgreSQL drivers (`psycopg`, `psycopg2-binary`)
